@@ -1,0 +1,23 @@
+# Exclude all files
+*
+!*/
+
+# Build system exceptions
+!*.mk
+
+# Source file exceptions
+!*.c
+!*.h
+
+# Repo file exceptions
+!.gitignore
+!.gitattributes
+!.gitmodules
+!.editorconfig
+
+# Documentation file exceptions
+!*.md
+!Doxyfile
+
+# Modules
+!build/makeframe
