@@ -3,8 +3,6 @@
 #include <string.h>
 
 #include <serum/crypto/hash.h>
-#include <serum/crypto/hashing/debug.h>
-#include <serum/crypto/hashing/md5.h>
 
 
 
