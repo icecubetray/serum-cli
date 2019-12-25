@@ -9,7 +9,7 @@
 
 
 
-int cmd_md5(int, char **);
+int cmd_hash_generic(int, char **);
 
 
 
@@ -19,7 +19,8 @@ struct {
 	char cmd[32];
 	subcmd_entry ep;
 } subcmd_table[] = {
-	{ .cmd = "md5", .ep = cmd_md5 }
+	{ .cmd = "debug", .ep = cmd_hash_generic },
+	{ .cmd = "md5", .ep = cmd_hash_generic }
 };
 
 
@@ -49,64 +50,81 @@ int main(int argc, char *argv[]) {
 
 
 int
-cmd_md5(int argc, char **argv) {
+tpl_hash_info(const unsigned int identifier) {
+	struct serum_hash_info info;
+	if (serum_hash_getinfo(identifier, &info) != SERUM_OK) {
+		return 1;
+	}
+
+	printf("Name: %s\n", info.name);
+	printf("Identifier: 0x%02X\n", info.identifier);
+	puts("");
+	puts("Sizes:");
+	printf(" - %u context\n", info.context_size);
+	printf(" - %u block\n", info.block_size);
+	printf(" - %u digest\n", info.digest_size);
+	puts("");
+	puts("Functions:");
+	printf(" - %p init\n", (void*)info.f_init);
+	printf(" - %p clear\n", (void*)info.f_clear);
+	printf(" - %p update\n", (void*)info.f_update);
+	printf(" - %p finish\n", (void*)info.f_finish);
+
+	return 0;
+}
+
+int
+tpl_hash_digest(const unsigned int identifier, const char *const data, const size_t len) {
+	struct serum_hash_info info;
+	if (serum_hash_getinfo(identifier, &info) != SERUM_OK) {
+		return 1;
+	}
+
+	unsigned char digest[info.digest_size];
+	if (serum_hash(identifier, digest, data, len) != SERUM_OK) {
+		return 2;
+	}
+
+	unsigned int register i;
+	for (i = 0; i < sizeof(digest); ++i) {
+		printf("%02x", digest[i]);
+	}
+	puts("");
+
+	return 0;
+}
+
+
+
+
+int
+cmd_hash_generic(int argc, char **argv) {
+	static struct {
+		char name[16];
+		unsigned int identifier;
+	} table[] = {
+		{ "debug", SERUM_HASH_DEBUG },
+		{ "md5", SERUM_MD5 }
+	};
+
+	unsigned int identifier = 0;
+	unsigned int register i;
+	for (i = (sizeof(table) / sizeof(*table)); i--;) {
+		if (strcmp(table[i].name, argv[0]) == 0) {
+			identifier = table[i].identifier;
+			break;
+		}
+	}
+
+	if (identifier == 0) {
+		puts("lookup failure");
+		return 1;
+	}
+
 	if (argc < 2) {
-		serum_interface_hash_init f_init;
-		serum_interface_hash_clear f_clear;
-		serum_interface_hash_update f_update;
-		serum_interface_hash_finish f_finish;
-
-		const unsigned int res = serum_hash_getimpl(SERUM_MD5, &f_init, &f_clear, &f_update, &f_finish);
-		if (res != 0) {
-			fprintf(stderr, "Error getting hash impl: %u\n", res);
-			return (const int)res;
-		}
-
-		printf("Ident : %X\n", SERUM_MD5);
-		printf("Init  : %p\n", (void*)f_init);
-		printf("Clear : %p\n", (void*)f_clear);
-		printf("Update: %p\n", (void*)f_update);
-		printf("Finish: %p\n", (void*)f_finish);
+		return tpl_hash_info(identifier);
 	} else {
-		unsigned char digest[16];
-
-
-		// Only works for messages up to 63 bytes, too lazy to implement the _update calls
-		struct serum_md5_context md5;
-		serum_md5_init(&md5);
-		serum_md5_finish(&md5, digest, argv[1], strlen(argv[1]), strlen(argv[1]));
-		serum_md5_clear(&md5);
-
-		fputs("Digest N: ", stdout);
-		unsigned int i;
-		for (i = 0; i < 16; ++i) {
-			printf("%02X", digest[i]);
-		}
-		puts("");
-
-		// ----------------------------------------------------------------------------------
-
-		struct serum_hash lux;
-		serum_hash_init(&lux, SERUM_MD5);
-		serum_hash_update(&lux, argv[1], strlen(argv[1]));
-		serum_hash_finish(&lux, digest);
-		serum_hash_clear(&lux);
-
-		fputs("Digest L: ", stdout);
-		for (i = 0; i < 16; ++i) {
-			printf("%02X", digest[i]);
-		}
-		puts("");
-
-		// ----------------------------------------------------------------------------------
-
-		serum_hash(SERUM_MD5, digest, argv[1], strlen(argv[1]));
-
-		fputs("Digest U: ", stdout);
-		for (i = 0; i < 16; ++i) {
-			printf("%02X", digest[i]);
-		}
-		puts("");
+		return tpl_hash_digest(identifier, argv[1], strlen(argv[1]));
 	}
 
 	return 0;
